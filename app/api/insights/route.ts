@@ -1,92 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server'
-import axios from 'axios'
+// app/api/insights/route.ts
+import { NextResponse } from "next/server";
+import { genAI, CHAT_MODEL } from "../../../lib/gemini";
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json()
-    const { query, sampleSize = 1000 } = body
+    const { message, history } = await req.json();
 
-    if (!query || typeof query !== 'string') {
-      return NextResponse.json(
-        { error: 'Query is required' },
-        { status: 400 }
-      )
+    if (!message || message.trim() === "") {
+      return NextResponse.json({ error: "No message provided" }, { status: 400 });
     }
 
-    // Check for OpenAI API key
-    const openaiApiKey = process.env.OPENAI_API_KEY
-    if (!openaiApiKey) {
-      return NextResponse.json(
-        { error: 'OpenAI API key not configured. Please set OPENAI_API_KEY in .env.local' },
-        { status: 500 }
-      )
+    // Build conversation context
+    let prompt = "You are a friendly AI Insights assistant. Answer clearly and empathetically.\n\n";
+    if (history && Array.isArray(history)) {
+      history.forEach((msg: any) => {
+        prompt += `${msg.sender === "user" ? "User" : "AI"}: ${msg.text}\n`;
+      });
     }
+    prompt += `User: ${message}\nAI:`;
 
-    // Fetch sample data from our own API
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    const meteorsResponse = await fetch(`${baseUrl}/api/meteors?limit=${sampleSize}`)
-    
-    if (!meteorsResponse.ok) {
-      throw new Error('Failed to fetch meteor data')
-    }
+    // Call Gemini
+    const model = genAI.getGenerativeModel({ model: CHAT_MODEL });
+    const result = await model.generateContent(prompt);
 
-    const meteors = await meteorsResponse.json()
-
-    // Prepare compact dataset summary for the LLM
-    const summary = {
-      totalCount: meteors.length,
-      sampleSize,
-      decades: {} as { [key: string]: number },
-      classes: {} as { [key: string]: number },
-      topMasses: meteors
-        .filter((m: any) => m.mass)
-        .sort((a: any, b: any) => b.mass - a.mass)
-        .slice(0, 10)
-        .map((m: any) => ({
-          name: m.name,
-          mass: m.mass,
-          year: m.year,
-          class: m.recclass,
-        })),
-      yearRange: {
-        earliest: null as number | null,
-        latest: null as number | null,
-      },
-    }
-
-    // Compute decade and class distributions
-    meteors.forEach((meteor: any) => {
-      if (meteor.year) {
-        const year = parseInt(meteor.year)
-        if (!isNaN(year)) {
-          const decade = Math.floor(year / 10) * 10
-          summary.decades[decade] = (summary.decades[decade] || 0) + 1
-
-          if (!summary.yearRange.earliest || year < summary.yearRange.earliest) {
-            summary.yearRange.earliest = year
-          }
-          if (!summary.yearRange.latest || year > summary.yearRange.latest) {
-            summary.yearRange.latest = year
-          }
-        }
-      }
-
-      if (meteor.recclass) {
-        summary.classes[meteor.recclass] = (summary.classes[meteor.recclass] || 0) + 1
-      }
-    })
-
-    // ✅ Return a valid JSON response
-    return NextResponse.json({
-      message: 'Meteor data summary generated successfully',
-      summary,
-    })
-
-  } catch (error: any) {
-    console.error('Error generating meteor summary:', error)
+    return NextResponse.json({ reply: result.response.text() });
+  } catch (err: any) {
+    console.error("API error:", err);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: err.message || "Something went wrong" },
       { status: 500 }
-    )
+    );
   }
 }
