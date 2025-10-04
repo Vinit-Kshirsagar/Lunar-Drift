@@ -75,5 +75,18 @@ export async function POST(request: NextRequest) {
         summary.classes[meteor.recclass] = (summary.classes[meteor.recclass] || 0) + 1
       }
     })
+
+    // ✅ Return a valid JSON response
+    return NextResponse.json({
+      message: 'Meteor data summary generated successfully',
+      summary,
+    })
+
+  } catch (error: any) {
+    console.error('Error generating meteor summary:', error)
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    )
   }
-   
+}
