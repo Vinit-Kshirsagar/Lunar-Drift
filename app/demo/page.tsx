@@ -1,16 +1,20 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Users, Building2, Wind, Shield } from 'lucide-react';
+import * as THREE from 'three';
 
 export default function DemoPage() {
-  const router = useRouter();
-  const [animationState, setAnimationState] = useState<'idle' | 'animating' | 'complete'>('idle');
+  const [animationState, setAnimationState] = useState('idle');
   const [showImpact, setShowImpact] = useState(false);
-  const [showTrajectory, setShowTrajectory] = useState(false);
   const [currentTimelineIndex, setCurrentTimelineIndex] = useState(-1);
+  const containerRef = useRef(null);
+  const sceneRef = useRef(null);
+  const rendererRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const meteorRef = useRef(null);
+  const trailParticlesRef = useRef([]);
 
   const meteorData = {
     velocity: 20000,
@@ -26,13 +30,13 @@ export default function DemoPage() {
 
   const impactEnergy = 0.5 * meteorData.mass * Math.pow(meteorData.velocity, 2);
 
-  const getImpactLevel = (energy: number) => {
+  const getImpactLevel = (energy) => {
     if (energy < 1e12) return { level: 'Low Impact', color: 'text-green-400', icon: '🟢', precaution: 'Minor event, minimal ground impact.' };
     if (energy < 1e15) return { level: 'Medium Impact', color: 'text-orange-400', icon: '🟠', precaution: 'Potential local damage — seek shelter.' };
     return { level: 'High Impact', color: 'text-red-400', icon: '🔴', precaution: 'Severe global threat — initiate emergency protocols.' };
   };
 
-  const getCivilianImpact = (energy: number) => {
+  const getCivilianImpact = (energy) => {
     if (energy < 1e12) {
       return {
         radius: '1-5 km',
@@ -57,7 +61,7 @@ export default function DemoPage() {
     };
   };
 
-  const getSafetyProtocols = (energy: number) => {
+  const getSafetyProtocols = (energy) => {
     if (energy < 1e12) {
       return [
         'Monitor local news and emergency broadcasts',
@@ -77,7 +81,7 @@ export default function DemoPage() {
       ];
     }
     return [
-      '🚨 CRITICAL: Initiate mass evacuation protocols',
+      'CRITICAL: Initiate mass evacuation protocols',
       'Seek deep underground bunkers if available',
       'Stock minimum 2-week supplies in sealed containers',
       'Prepare for extended power and communication outages',
@@ -87,7 +91,7 @@ export default function DemoPage() {
     ];
   };
 
-  const getImpactReasons = (energy: number) => {
+  const getImpactReasons = (energy) => {
     const commonReasons = [
       {
         title: 'Gravitational Perturbations',
@@ -196,15 +200,498 @@ export default function DemoPage() {
   const safetyProtocols = getSafetyProtocols(impactEnergy);
   const impactReasons = getImpactReasons(impactEnergy);
 
+  const createEarthTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+
+    const oceanGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    oceanGradient.addColorStop(0, '#1a4d6e');
+    oceanGradient.addColorStop(0.5, '#0a5f8a');
+    oceanGradient.addColorStop(1, '#0d3a5b');
+    ctx.fillStyle = oceanGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const continents = [
+      { x: 300, y: 400, w: 500, h: 300, rotation: 0.2 },
+      { x: 1000, y: 350, w: 450, h: 250, rotation: -0.1 },
+      { x: 1600, y: 480, w: 350, h: 200, rotation: 0.3 },
+      { x: 400, y: 700, w: 300, h: 180, rotation: -0.2 },
+      { x: 1200, y: 650, w: 500, h: 250, rotation: 0.15 },
+      { x: 200, y: 200, w: 280, h: 150, rotation: 0 },
+      { x: 1700, y: 250, w: 320, h: 180, rotation: -0.25 }
+    ];
+
+    continents.forEach(cont => {
+      ctx.save();
+      ctx.translate(cont.x + cont.w / 2, cont.y + cont.h / 2);
+      ctx.rotate(cont.rotation);
+      
+      const landGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(cont.w, cont.h) / 2);
+      landGradient.addColorStop(0, '#5a9c6f');
+      landGradient.addColorStop(0.3, '#4a7c59');
+      landGradient.addColorStop(0.6, '#3d6b4a');
+      landGradient.addColorStop(1, '#2d5a3a');
+      
+      ctx.fillStyle = landGradient;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, cont.w / 2, cont.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      for (let i = 0; i < 15; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(70, 120, 80, 0.4)' : 'rgba(90, 140, 70, 0.3)';
+        const offsetX = (Math.random() - 0.5) * cont.w * 0.7;
+        const offsetY = (Math.random() - 0.5) * cont.h * 0.7;
+        const size = Math.random() * 40 + 20;
+        ctx.beginPath();
+        ctx.arc(offsetX, offsetY, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      ctx.restore();
+    });
+
+    for (let i = 0; i < 500; i++) {
+      const brightness = Math.random() * 60 + 30;
+      ctx.fillStyle = `rgba(${brightness + 30}, ${brightness + 60}, ${brightness + 40}, ${Math.random() * 0.4 + 0.2})`;
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 30 + 10;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.fillRect(0, 0, canvas.width, 80);
+    ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
+
+    return new THREE.CanvasTexture(canvas);
+  };
+
+  const createCloudTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+
+    for (let i = 0; i < 800; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const radius = Math.random() * 60 + 20;
+      const opacity = Math.random() * 0.5 + 0.3;
+      
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity})`);
+      gradient.addColorStop(0.5, `rgba(255, 255, 255, ${opacity * 0.5})`);
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(canvas);
+  };
+
+  const createBumpMap = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#505050';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < 2000; i++) {
+      const gray = Math.floor(Math.random() * 140 + 30);
+      ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      const size = Math.random() * 50 + 15;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(canvas);
+  };
+
+  const createMeteorTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+    gradient.addColorStop(0, '#6b4423');
+    gradient.addColorStop(0.5, '#4a3018');
+    gradient.addColorStop(1, '#2a1810');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+
+    for (let i = 0; i < 300; i++) {
+      const gray = Math.floor(Math.random() * 80 + 20);
+      ctx.fillStyle = `rgb(${gray + 40}, ${gray + 20}, ${gray})`;
+      ctx.beginPath();
+      ctx.arc(Math.random() * 512, Math.random() * 512, Math.random() * 20 + 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    return new THREE.CanvasTexture(canvas);
+  };
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const scene = new THREE.Scene();
+    sceneRef.current = scene;
+    scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      0.1,
+      2000
+    );
+    camera.position.set(0, 5, 40);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true, 
+      alpha: true,
+      powerPreference: "high-performance"
+    });
+    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    containerRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffeedd, 3);
+    sunLight.position.set(-40, 25, 20);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 150;
+    sunLight.shadow.camera.left = -50;
+    sunLight.shadow.camera.right = 50;
+    sunLight.shadow.camera.top = 50;
+    sunLight.shadow.camera.bottom = -50;
+    scene.add(sunLight);
+
+    const backLight = new THREE.DirectionalLight(0x4488ff, 1.2);
+    backLight.position.set(30, 15, -20);
+    scene.add(backLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    rimLight.position.set(0, 10, -30);
+    scene.add(rimLight);
+
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsVertices = [];
+    const starsColors = [];
+    
+    for (let i = 0; i < 20000; i++) {
+      const x = (Math.random() - 0.5) * 500;
+      const y = (Math.random() - 0.5) * 500;
+      const z = (Math.random() - 0.5) * 500;
+      starsVertices.push(x, y, z);
+      
+      const color = new THREE.Color();
+      const hue = Math.random() * 0.15 + 0.55;
+      const saturation = Math.random() * 0.4 + 0.3;
+      const lightness = Math.random() * 0.4 + 0.6;
+      color.setHSL(hue, saturation, lightness);
+      starsColors.push(color.r, color.g, color.b);
+    }
+
+    starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+    starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
+    
+    const starsMaterial = new THREE.PointsMaterial({
+      size: 0.18,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      sizeAttenuation: true
+    });
+
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
+
+    const earthGeometry = new THREE.SphereGeometry(5.5, 128, 128);
+    const earthMaterial = new THREE.MeshPhongMaterial({
+      map: createEarthTexture(),
+      bumpMap: createBumpMap(),
+      bumpScale: 0.25,
+      specular: new THREE.Color(0x333333),
+      shininess: 25,
+      emissive: new THREE.Color(0x112233),
+      emissiveIntensity: 0.1
+    });
+
+    const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+    earth.position.set(15, 0, 0);
+    earth.castShadow = true;
+    earth.receiveShadow = true;
+    scene.add(earth);
+
+    const cloudsGeometry = new THREE.SphereGeometry(5.6, 128, 128);
+    const cloudsMaterial = new THREE.MeshPhongMaterial({
+      map: createCloudTexture(),
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      side: THREE.FrontSide
+    });
+    const clouds = new THREE.Mesh(cloudsGeometry, cloudsMaterial);
+    earth.add(clouds);
+
+    const atmosphereGeometry = new THREE.SphereGeometry(6.2, 64, 64);
+    const atmosphereMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        c: { value: 0.5 },
+        p: { value: 6.5 },
+        glowColor: { value: new THREE.Color(0x3399ff) },
+        viewVector: { value: camera.position }
+      },
+      vertexShader: `
+        uniform vec3 viewVector;
+        varying float intensity;
+        void main() {
+          vec3 vNormal = normalize(normalMatrix * normal);
+          vec3 vNormel = normalize(normalMatrix * viewVector);
+          intensity = pow(0.7 - dot(vNormal, vNormel), 4.0);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 glowColor;
+        varying float intensity;
+        void main() {
+          vec3 glow = glowColor * intensity;
+          gl_FragColor = vec4(glow, intensity * 0.9);
+        }
+      `,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      transparent: true
+    });
+    const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+    earth.add(atmosphere);
+
+    const trajectoryPoints = [];
+    const startPoint = new THREE.Vector3(-35, 8, -5);
+    const impactPoint = new THREE.Vector3(15, -1, 0);
+    
+    for (let i = 0; i <= 100; i++) {
+      const t = i / 100;
+      const x = startPoint.x + (impactPoint.x - startPoint.x) * t;
+      const y = startPoint.y + (impactPoint.y - startPoint.y) * t;
+      const z = startPoint.z + (impactPoint.z - startPoint.z) * t;
+      trajectoryPoints.push(new THREE.Vector3(x, y, z));
+    }
+
+    const trajectoryCurve = new THREE.CatmullRomCurve3(trajectoryPoints);
+    const trajectoryGeometry = new THREE.TubeGeometry(trajectoryCurve, 100, 0.025, 8, false);
+    const trajectoryMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff6600,
+      transparent: true,
+      opacity: 0.5,
+      emissive: new THREE.Color(0xff6600),
+      emissiveIntensity: 0.6
+    });
+    const trajectoryLine = new THREE.Mesh(trajectoryGeometry, trajectoryMaterial);
+    scene.add(trajectoryLine);
+
+    const meteorGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+    const meteorMaterial = new THREE.MeshStandardMaterial({
+      map: createMeteorTexture(),
+      roughness: 0.9,
+      metalness: 0.2,
+      emissive: new THREE.Color(0xff4400),
+      emissiveIntensity: 0.5
+    });
+
+    const meteor = new THREE.Mesh(meteorGeometry, meteorMaterial);
+    meteor.castShadow = true;
+    meteor.visible = false;
+    scene.add(meteor);
+    meteorRef.current = meteor;
+
+    const meteorLight = new THREE.PointLight(0xff6600, 4, 20);
+    meteor.add(meteorLight);
+
+    const trailParticles = [];
+    const trailGeometry = new THREE.SphereGeometry(0.1, 12, 12);
+    const trailMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffaa00,
+      transparent: true,
+      opacity: 0.8
+    });
+
+    for (let i = 0; i < 40; i++) {
+      const particle = new THREE.Mesh(trailGeometry, trailMaterial.clone());
+      particle.visible = false;
+      scene.add(particle);
+      trailParticles.push(particle);
+    }
+    trailParticlesRef.current = trailParticles;
+
+    let animationProgress = 0;
+    let impactTriggered = false;
+
+    const animate = () => {
+      animationFrameRef.current = requestAnimationFrame(animate);
+
+      earth.rotation.y += 0.001;
+      clouds.rotation.y += 0.0015;
+      stars.rotation.y += 0.0001;
+      stars.rotation.x += 0.00005;
+
+      if (animationState === 'animating') {
+        if (!meteor.visible) {
+          meteor.visible = true;
+          animationProgress = 0;
+          impactTriggered = false;
+        }
+
+        animationProgress += 0.0008;
+
+        if (animationProgress <= 1) {
+          const point = trajectoryCurve.getPointAt(Math.min(animationProgress, 0.999));
+          meteor.position.copy(point);
+
+          meteor.rotation.x += 0.09;
+          meteor.rotation.y += 0.06;
+          meteor.rotation.z += 0.04;
+
+          const scale = 1 + animationProgress * 3.5;
+          meteor.scale.set(scale, scale, scale);
+          meteorLight.intensity = 4 + animationProgress * 10;
+          meteorLight.distance = 20 + animationProgress * 15;
+
+          trailParticles.forEach((particle, i) => {
+            if (animationProgress > i * 0.025) {
+              particle.visible = true;
+              const trailProgress = Math.max(0, animationProgress - i * 0.025);
+              const trailPoint = trajectoryCurve.getPointAt(Math.min(trailProgress, 0.999));
+              particle.position.copy(trailPoint);
+              particle.material.opacity = 0.8 * (1 - i / trailParticles.length) * (1 + animationProgress);
+              const particleScale = 1 + trailProgress * 2;
+              particle.scale.set(particleScale, particleScale, particleScale);
+            }
+          });
+
+          if (animationProgress >= 0.96 && !impactTriggered) {
+            impactTriggered = true;
+            
+            const impactLight = new THREE.PointLight(0xffffff, 30, 50);
+            impactLight.position.copy(earth.position);
+            scene.add(impactLight);
+
+            const impactFlashGeometry = new THREE.SphereGeometry(6, 32, 32);
+            const impactFlashMaterial = new THREE.MeshBasicMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 1
+            });
+            const impactFlash = new THREE.Mesh(impactFlashGeometry, impactFlashMaterial);
+            impactFlash.position.copy(earth.position);
+            scene.add(impactFlash);
+
+            const shockwaveGeometry = new THREE.RingGeometry(5.5, 5.7, 32);
+            const shockwaveMaterial = new THREE.MeshBasicMaterial({
+              color: 0xff8800,
+              transparent: true,
+              opacity: 1,
+              side: THREE.DoubleSide
+            });
+            const shockwave = new THREE.Mesh(shockwaveGeometry, shockwaveMaterial);
+            shockwave.position.copy(earth.position);
+            shockwave.lookAt(camera.position);
+            scene.add(shockwave);
+
+            let flashProgress = 0;
+            const animateImpact = () => {
+              flashProgress += 0.04;
+              impactFlash.scale.set(1 + flashProgress * 3, 1 + flashProgress * 3, 1 + flashProgress * 3);
+              impactFlash.material.opacity = Math.max(0, 1 - flashProgress);
+              impactLight.intensity = Math.max(0, 30 - flashProgress * 30);
+              
+              shockwave.scale.set(1 + flashProgress * 2, 1 + flashProgress * 2, 1);
+              shockwave.material.opacity = Math.max(0, 1 - flashProgress * 1.2);
+
+              if (flashProgress < 1) {
+                requestAnimationFrame(animateImpact);
+              } else {
+                scene.remove(impactLight);
+                scene.remove(impactFlash);
+                scene.remove(shockwave);
+              }
+            };
+            animateImpact();
+
+            setTimeout(() => {
+              setShowImpact(true);
+              setAnimationState('complete');
+              meteor.visible = false;
+              trailParticles.forEach(p => p.visible = false);
+            }, 400);
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    const handleResize = () => {
+      if (!containerRef.current) return;
+      camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (containerRef.current && renderer.domElement && containerRef.current.contains(renderer.domElement)) {
+        containerRef.current.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+      earthGeometry.dispose();
+      earthMaterial.dispose();
+      meteorGeometry.dispose();
+      meteorMaterial.dispose();
+      starsGeometry.dispose();
+      starsMaterial.dispose();
+    };
+  }, [animationState]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      setShowTrajectory(true);
       setTimeout(() => {
         setAnimationState('animating');
         detectionTimeline.forEach((_, index) => {
           setTimeout(() => {
             setCurrentTimelineIndex(index);
-          }, index * 2000);
+          }, index * 2400);
         });
       }, 1000);
     }, 500);
@@ -212,48 +699,35 @@ export default function DemoPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
-    if (animationState === 'animating') {
-      const impactTimer = setTimeout(() => {
-        setShowImpact(true);
-        setAnimationState('complete');
-      }, 14000);
-
-      return () => clearTimeout(impactTimer);
-    }
-  }, [animationState]);
-
   const handleReplay = () => {
     setAnimationState('idle');
     setShowImpact(false);
-    setShowTrajectory(false);
     setCurrentTimelineIndex(-1);
+
+    if (meteorRef.current) {
+      meteorRef.current.visible = false;
+    }
+    if (trailParticlesRef.current) {
+      trailParticlesRef.current.forEach(p => p.visible = false);
+    }
+
     setTimeout(() => {
-      setShowTrajectory(true);
-      setTimeout(() => {
-        setAnimationState('animating');
-        detectionTimeline.forEach((_, index) => {
-          setTimeout(() => {
-            setCurrentTimelineIndex(index);
-          }, index * 2000);
-        });
-      }, 1000);
+      setAnimationState('animating');
+      detectionTimeline.forEach((_, index) => {
+        setTimeout(() => {
+          setCurrentTimelineIndex(index);
+        }, index * 2400);
+      });
     }, 100);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-black/50 backdrop-blur-md border-b border-gray-800">
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-6 py-4">
           <h1 className="text-2xl font-mono font-bold tracking-wider">
-            <span className="text-blue-400">LUNAR DRIFT</span> – Meteor Impact Simulator
+            <span className="text-blue-400">LUNAR DRIFT</span> – Advanced Meteor Impact Simulator
           </h1>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors font-mono text-sm"
-          >
-            ← Back
-          </button>
         </div>
       </nav>
 
@@ -266,170 +740,84 @@ export default function DemoPage() {
             className="mb-8"
           >
             <div className="bg-gray-900/30 backdrop-blur-sm border border-gray-800 rounded-2xl overflow-hidden shadow-2xl" style={{ height: '700px' }}>
-              <div className="relative w-full h-full overflow-hidden bg-gradient-to-b from-indigo-950/30 to-black">
-                <div className="absolute inset-0">
-                  {[...Array(100)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="absolute bg-white rounded-full"
-                      style={{
-                        width: Math.random() * 2 + 1 + 'px',
-                        height: Math.random() * 2 + 1 + 'px',
-                        top: Math.random() * 100 + '%',
-                        left: Math.random() * 100 + '%',
-                        opacity: Math.random() * 0.7 + 0.3,
-                      }}
-                    />
-                  ))}
-                </div>
-
-                <AnimatePresence>
-                  {showTrajectory && animationState !== 'complete' && (
-                    <motion.svg
-                      className="absolute inset-0 w-full h-full z-5"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.6 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <motion.path
-                        d="M 100 80 Q 300 200, 500 350 Q 700 500, 900 600"
-                        stroke="#fbbf24"
-                        strokeWidth="3"
-                        fill="none"
-                        strokeDasharray="10 5"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 3, ease: "easeInOut" }}
-                      />
-                      <motion.circle
-                        cx="900"
-                        cy="600"
-                        r="8"
-                        fill="#ef4444"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: [0, 1.5, 1] }}
-                        transition={{ duration: 1, delay: 2.5 }}
-                      />
-                    </motion.svg>
-                  )}
-                </AnimatePresence>
-
-                <div className="absolute bottom-20 right-8 w-48 h-48 rounded-full overflow-hidden shadow-2xl">
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500 via-green-400 to-blue-600 opacity-80" />
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.3),transparent_50%)]" />
-                </div>
-
-                <AnimatePresence>
-                  {animationState === 'animating' && (
-                    <>
-                      <motion.div
-                        initial={{ x: 100, y: 80, opacity: 0 }}
-                        animate={{ x: 900, y: 600, opacity: 1 }}
-                        transition={{ duration: 12, ease: 'linear' }}
-                        className="absolute w-16 h-16 rounded-full z-10"
-                        style={{
-                          background: 'radial-gradient(circle, #fbbf24 0%, #f59e0b 40%, #ea580c 100%)',
-                          boxShadow: '0 0 40px 20px rgba(251, 191, 36, 0.6), 0 0 80px 40px rgba(234, 88, 12, 0.3)',
-                        }}
-                      >
-                        <motion.div
-                          className="absolute -left-24 -top-2 w-24 h-20"
-                          style={{
-                            background: 'linear-gradient(to right, rgba(251, 191, 36, 0.6), transparent)',
-                            filter: 'blur(8px)',
-                          }}
-                        />
-                      </motion.div>
-
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 2] }}
-                        transition={{ duration: 1.2, delay: 11.8 }}
-                        className="absolute right-8 bottom-20 w-64 h-64 rounded-full bg-white z-20"
-                        style={{ filter: 'blur(20px)' }}
-                      />
-
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0 }}
-                        animate={{ opacity: [0, 0.7, 0], scale: [0, 2, 3] }}
-                        transition={{ duration: 1.5, delay: 11.8 }}
-                        className="absolute right-8 bottom-20 w-96 h-96 rounded-full border-4 border-orange-400 z-20"
-                      />
-                    </>
-                  )}
-                </AnimatePresence>
-
+              <div 
+                ref={containerRef}
+                className="relative w-full overflow-hidden bg-black"
+                style={{ height: '600px' }}
+              >
                 {animationState === 'idle' && (
-                  <div className="absolute inset-0 flex items-center justify-center pb-32">
+                  <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
                     <div className="text-center space-y-4">
-                      <div className="text-6xl">☄️</div>
-                      <p className="text-gray-400 font-mono">Calculating trajectory...</p>
+                      <div className="text-6xl">🌍</div>
+                      <p className="text-gray-400 font-mono">Initializing 3D simulation...</p>
+                      <p className="text-gray-500 font-mono text-sm">Loading high-resolution Earth model</p>
                     </div>
                   </div>
                 )}
 
                 {animationState === 'complete' && (
-                  <div className="absolute inset-0 flex items-center justify-center pb-32">
+                  <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none pb-32">
                     <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
                       className="text-center"
                     >
                       <div className="text-6xl mb-4">💥</div>
-                      <p className="text-red-400 font-mono font-bold">IMPACT DETECTED</p>
+                      <p className="text-red-400 font-mono font-bold text-2xl">IMPACT DETECTED</p>
+                      <p className="text-gray-400 font-mono text-sm mt-2">Simulation complete</p>
                     </motion.div>
                   </div>
                 )}
+              </div>
 
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/90 to-transparent pt-12 pb-6 px-6 z-30">
-                  <div className="max-w-6xl mx-auto">
-                    <h3 className="text-lg font-mono font-bold text-purple-400 mb-4">Detection Timeline (2022-2026)</h3>
-                    <div className="relative pb-4">
-                      <div className="flex justify-between items-end gap-2">
-                        {detectionTimeline.map((event, index) => (
-                          <motion.div
-                            key={index}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ 
-                              opacity: currentTimelineIndex >= index ? 1 : 0.3,
-                              y: 0,
-                              scale: currentTimelineIndex === index ? 1.1 : 1
-                            }}
-                            transition={{ duration: 0.5 }}
-                            className={`flex-1 text-center ${currentTimelineIndex >= index ? '' : 'grayscale'}`}
-                          >
-                            <div className={`text-3xl mb-2 ${currentTimelineIndex === index ? 'animate-bounce' : ''}`}>
-                              {event.icon}
-                            </div>
-                            <div className={`text-xs font-mono mb-1 ${
-                              currentTimelineIndex >= index ? 'text-white font-bold' : 'text-gray-600'
-                            }`}>
-                              {event.year}
-                            </div>
-                            <div className={`text-xs font-mono leading-tight ${
-                              currentTimelineIndex >= index ? 'text-gray-300' : 'text-gray-700'
-                            }`}>
-                              {event.title}
-                            </div>
-                            <div className={`text-xs font-mono font-bold mt-1 ${
-                              parseFloat(event.probability) < 1 ? 'text-green-400' :
-                              parseFloat(event.probability) < 50 ? 'text-yellow-400' :
-                              'text-red-400'
-                            }`}>
-                              {currentTimelineIndex >= index ? event.probability : '---'}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                      
-                      <div className="mt-4 h-1 bg-gray-800 rounded-full overflow-hidden">
+              <div className="bg-gradient-to-t from-black/95 via-black/90 to-transparent px-6 py-6">
+                <div className="max-w-6xl mx-auto">
+                  <h3 className="text-lg font-mono font-bold text-purple-400 mb-4">Detection Timeline (2022-2026)</h3>
+                  <div className="relative">
+                    <div className="flex justify-between items-end gap-2">
+                      {detectionTimeline.map((event, index) => (
                         <motion.div
-                          className="h-full bg-gradient-to-r from-blue-500 via-yellow-500 to-red-500"
-                          initial={{ width: '0%' }}
-                          animate={{ width: `${((currentTimelineIndex + 1) / detectionTimeline.length) * 100}%` }}
+                          key={index}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ 
+                            opacity: currentTimelineIndex >= index ? 1 : 0.3,
+                            y: 0,
+                            scale: currentTimelineIndex === index ? 1.1 : 1
+                          }}
                           transition={{ duration: 0.5 }}
-                        />
-                      </div>
+                          className={`flex-1 text-center ${currentTimelineIndex >= index ? '' : 'grayscale'}`}
+                        >
+                          <div className={`text-3xl mb-2 ${currentTimelineIndex === index ? 'animate-bounce' : ''}`}>
+                            {event.icon}
+                          </div>
+                          <div className={`text-xs font-mono mb-1 ${
+                            currentTimelineIndex >= index ? 'text-white font-bold' : 'text-gray-600'
+                          }`}>
+                            {event.year}
+                          </div>
+                          <div className={`text-xs font-mono leading-tight ${
+                            currentTimelineIndex >= index ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
+                            {event.title}
+                          </div>
+                          <div className={`text-xs font-mono font-bold mt-1 ${
+                            parseFloat(event.probability) < 1 ? 'text-green-400' :
+                            parseFloat(event.probability) < 50 ? 'text-yellow-400' :
+                            'text-red-400'
+                          }`}>
+                            {currentTimelineIndex >= index ? event.probability : '---'}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                    
+                    <div className="mt-4 h-1 bg-gray-800 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-blue-500 via-yellow-500 to-red-500"
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${((currentTimelineIndex + 1) / detectionTimeline.length) * 100}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -437,124 +825,7 @@ export default function DemoPage() {
             </div>
           </motion.div>
 
-          <div className="grid lg:grid-cols-2 gap-8 items-start mb-8">
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              className="space-y-6"
-            >
-              <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl">
-                <h2 className="text-3xl font-mono font-bold mb-6 text-blue-400">Meteor Parameters</h2>
-                
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Designation</span>
-                    <span className="text-xl font-mono font-bold">{meteorData.name}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Discovered</span>
-                    <span className="text-xl font-mono font-bold">{meteorData.discovered}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Impact Probability</span>
-                    <span className="text-xl font-mono font-bold text-red-400">{meteorData.probability}%</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Velocity</span>
-                    <span className="text-xl font-mono font-bold">{meteorData.velocity.toLocaleString()} m/s</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Size</span>
-                    <span className="text-xl font-mono font-bold">{meteorData.size} meters</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Angle</span>
-                    <span className="text-xl font-mono font-bold">{meteorData.angle}°</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-3 border-b border-gray-800">
-                    <span className="text-gray-400 font-mono">Mass</span>
-                    <span className="text-xl font-mono font-bold">{meteorData.mass.toExponential(1)} kg</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-3">
-                    <span className="text-gray-400 font-mono">Impact Energy</span>
-                    <span className="text-xl font-mono font-bold text-yellow-400">{impactEnergy.toExponential(2)} J</span>
-                  </div>
-                </div>
-              </div>
-
-              <AnimatePresence>
-                {showImpact && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6 }}
-                    className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl"
-                  >
-                    <h2 className="text-2xl font-mono font-bold mb-4">Impact Assessment</h2>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">{impactInfo.icon}</span>
-                        <span className={`text-2xl font-mono font-bold ${impactInfo.color}`}>
-                          {impactInfo.level}
-                        </span>
-                      </div>
                       
-                      <div className="bg-gray-800/50 rounded-lg p-4 border-l-4 border-yellow-400">
-                        <p className="text-gray-300 font-mono text-sm leading-relaxed">
-                          {impactInfo.precaution}
-                        </p>
-                      </div>
-                      
-                      <button
-                        onClick={handleReplay}
-                        className="w-full mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-mono font-bold text-lg shadow-lg hover:shadow-blue-500/50"
-                      >
-                        🔄 Replay Simulation
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
-              className="relative"
-            >
-              <AnimatePresence>
-                {showImpact && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.2 }}
-                    className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-2xl p-8 shadow-2xl"
-                  >
-                    <h2 className="text-2xl font-mono font-bold mb-6 text-blue-400">Simulation Complete</h2>
-                    <div className="space-y-4 text-gray-300 font-mono text-sm leading-relaxed">
-                      <p>The meteor has completed its trajectory from detection to impact over a 4-year period (2022-2026).</p>
-                      <p>Review the detailed impact analysis and safety protocols below.</p>
-                      <div className="mt-6 bg-gray-800/50 rounded-lg p-4 border-l-4 border-blue-500">
-                        <p className="text-xs text-gray-400">Animation Duration: 12 seconds</p>
-                        <p className="text-xs text-gray-400">Timeline Events: 7 milestones</p>
-                        <p className="text-xs text-gray-400">Final Impact Probability: {meteorData.probability}%</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </div>
 
           <AnimatePresence>
             {showImpact && (
