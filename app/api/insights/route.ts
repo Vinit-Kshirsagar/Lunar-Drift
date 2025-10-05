@@ -10,16 +10,63 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No message provided" }, { status: 400 });
     }
 
-    // Build conversation context
-    let prompt = "You are a friendly AI Insights assistant. Answer clearly and empathetically.\n\n";
+    // --------------------------------
+    // 1. NASA Keyword Guardrail (Pre-filter)
+    // --------------------------------
+    const nasaKeywords = [
+      "nasa",
+      "meteor",
+      "asteroid",
+      "comet",
+      "space",
+      "orbit",
+      "planet",
+      "moon",
+      "mars",
+      "satellite",
+      "astronomy",
+      "galaxy",
+      "universe",
+      "rocket",
+      "launch",
+      "iss",
+      "telescope",
+    ];
+
+    const isRelevant = nasaKeywords.some((k) =>
+      message.toLowerCase().includes(k)
+    );
+
+    if (!isRelevant) {
+      return NextResponse.json({
+        reply: "I can only answer NASA-related questions.",
+      });
+    }
+
+    // --------------------------------
+    // 2. Strict System Prompt + History
+    // --------------------------------
+    let prompt = `
+You are a NASA domain expert for our hackathon project "Meteor Madness".
+Rules:
+- ONLY answer questions related to NASA, meteors, space, astronomy, or satellites.
+- If the user asks something irrelevant, reply exactly: "I can only answer NASA-related questions."
+- Keep answers concise, factual, and easy to understand.
+
+Conversation so far:
+`;
+
     if (history && Array.isArray(history)) {
       history.forEach((msg: any) => {
         prompt += `${msg.sender === "user" ? "User" : "AI"}: ${msg.text}\n`;
       });
     }
+
     prompt += `User: ${message}\nAI:`;
 
-    // Call Gemini
+    // --------------------------------
+    // 3. Call Gemini
+    // --------------------------------
     const model = genAI.getGenerativeModel({ model: CHAT_MODEL });
     const result = await model.generateContent(prompt);
 
