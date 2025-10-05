@@ -151,6 +151,48 @@ export default function Home() {
             Explore NASA's comprehensive database of meteorite landings across Earth. 
             Discover patterns, visualize impact sites, and gain insights into cosmic visitors.
           </p>
+
+          {/* Demo Button - NEW */}
+          <div className="mb-16">
+            <Link 
+              href="/demo"
+              className="group relative inline-block"
+            >
+              {/* Animated gradient border */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 rounded-2xl blur-lg opacity-75 group-hover:opacity-100 transition duration-500 animate-pulse" />
+              
+              {/* Rotating rings */}
+              <div className="absolute -inset-3 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                <div className="absolute inset-0 border-2 border-orange-400/40 rounded-2xl animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-2 border-2 border-red-400/30 rounded-2xl animate-spin" style={{ animationDuration: '4s', animationDirection: 'reverse' }} />
+              </div>
+
+              {/* Button content */}
+              <div className="relative px-12 py-6 bg-gradient-to-br from-orange-600 to-red-700 rounded-2xl font-bold text-2xl text-white transition-all duration-300 group-hover:scale-105 group-hover:shadow-2xl flex items-center gap-4"
+                   style={{ boxShadow: '0 0 40px rgba(234, 88, 12, 0.6)' }}>
+                {/* Meteor icon with animation */}
+                <span className="text-4xl group-hover:animate-bounce">☄️</span>
+                <span className="tracking-wide">Launch Meteor Threat Demo</span>
+                <span className="text-4xl transform group-hover:translate-x-2 transition-transform duration-300">🚀</span>
+              </div>
+
+              {/* Sparkle effects */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                {[...Array(8)].map((_, i) => (
+                  <div
+                    key={`sparkle-${i}`}
+                    className="absolute w-1 h-1 bg-yellow-300 rounded-full"
+                    style={{
+                      top: `${Math.random() * 100}%`,
+                      left: `${Math.random() * 100}%`,
+                      animation: `sparkle ${1 + Math.random()}s ease-in-out infinite`,
+                      animationDelay: `${i * 0.2}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            </Link>
+          </div>
           
           {/* Feature cards with enhanced effects */}
           <div className="grid md:grid-cols-3 gap-8 mt-20 mb-20">
@@ -322,6 +364,17 @@ export default function Home() {
           }
           50% {
             filter: drop-shadow(0 0 40px rgba(34, 211, 238, 0.8)) drop-shadow(0 0 60px rgba(168, 85, 247, 0.4));
+          }
+        }
+
+        @keyframes sparkle {
+          0%, 100% {
+            opacity: 0;
+            transform: scale(0);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.5);
           }
         }
       `}</style>

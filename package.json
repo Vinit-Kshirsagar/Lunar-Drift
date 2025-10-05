@@ -12,6 +12,7 @@
     "axios": "^1.6.2",
     "chart.js": "^4.5.0",
     "dayjs": "^1.11.10",
+    "framer-motion": "^12.23.22",
     "leaflet": "^1.9.4",
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "next": "15.5.4",
