@@ -1,88 +1,88 @@
-import MeteorCard from '@/components/MeteorCard'
-import ChartsClient from '../../components/ChartsClient'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { Select } from '@/components/ui/select'
+import ChartClient from '@/components/ChartsClient'
 
 interface MeteorData {
   id: string
   name: string
-  mass: number | null
-  year: string | null
-  lat: number
-  lng: number
+  mass: string
+  year: string
+  reclat: string
+  reclong: string
   recclass: string
 }
 
-async function getMeteors(): Promise<MeteorData[]> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/meteors?limit=5000`, {
-      cache: 'no-store'
-    })
-    
-    if (!res.ok) {
-      throw new Error('Failed to fetch meteors')
-    }
-    
-    return await res.json()
-  } catch (error) {
-    console.error('Error fetching meteors:', error)
-    return []
-  }
-}
+export default function ChartsPage() {
+  const [meteors, setMeteors] = useState<MeteorData[]>([])
+  const [chartType, setChartType] = useState('decade')
 
-export default async function ChartsPage() {
-  const meteors = await getMeteors()
-
-  // Compute decade data
-  const decadeMap: { [key: string]: number } = {}
-  
-  meteors.forEach((meteor) => {
-    if (meteor.year) {
-      const year = parseInt(meteor.year)
-      if (!isNaN(year) && year >= 1000 && year <= 2100) {
-        const decade = Math.floor(year / 10) * 10
-        decadeMap[decade] = (decadeMap[decade] || 0) + 1
+  useEffect(() => {
+    const fetchMeteors = async () => {
+      try {
+        const res = await fetch('/api/meteors')
+        const data = await res.json()
+        setMeteors(data)
+      } catch (error) {
+        console.error('Error fetching meteor data:', error)
       }
     }
-  })
 
-  const decadeData = Object.entries(decadeMap)
-    .map(([decade, count]) => ({
-      decade: `${decade}s`,
-      count,
-    }))
-    .sort((a, b) => parseInt(a.decade) - parseInt(b.decade))
+    fetchMeteors()
+  }, [])
 
-  // Top 10 largest meteors
-  const largestMeteors = meteors
-    .filter((m) => m.mass && m.mass > 0)
-    .sort((a, b) => (b.mass || 0) - (a.mass || 0))
-    .slice(0, 10)
+  const chartOptions = [
+    { value: 'decade', label: 'Meteors by Decade' },
+    { value: 'classification', label: 'Meteors by Classification' },
+    { value: 'mass', label: 'Meteors by Mass Range' },
+  ]
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8 text-teal-400">Meteorite Data Visualization</h1>
+      <header className="mb-8 text-center">
+        <h1 className="text-4xl font-bold text-teal-400 mb-3">
+          Meteor Data Dashboard
+        </h1>
+        <p className="text-gray-400 max-w-2xl mx-auto">
+          Explore visual trends from NASA’s meteor dataset. Choose a chart below
+          to understand how meteorite discoveries vary across time, type, and
+          mass.
+        </p>
+      </header>
 
-      <div className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4 text-gray-200">Meteorites by Decade</h2>
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-          <ChartsClient decadeData={decadeData} />
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 shadow-lg max-w-5xl mx-auto">
+        {/* Chart Type Selector */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-200">
+            Select Chart Type
+          </h2>
+          <select
+            value={chartType}
+            onChange={(e) => setChartType(e.target.value)}
+            className="bg-gray-900 text-gray-300 border border-gray-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            {chartOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Chart Section */}
+        <div className="bg-gray-900 rounded-lg p-4">
+          <ChartClient meteors={meteors} chartType={chartType} />
         </div>
       </div>
 
-      <div>
-        <h2 className="text-2xl font-semibold mb-4 text-gray-200">Top 10 Largest Meteorites</h2>
-        <div className="grid md:grid-cols-2 gap-4">
-          {largestMeteors.map((meteor, index) => (
-            <div key={meteor.id} className="flex items-start space-x-3">
-              <div className="bg-teal-500 text-gray-900 font-bold rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
-                {index + 1}
-              </div>
-              <div className="flex-grow">
-                <MeteorCard meteor={meteor} />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* Info Section */}
+      <div className="max-w-4xl mx-auto mt-8 text-gray-400 text-sm leading-relaxed">
+        <p>
+          Data source: <span className="text-teal-400">NASA CNEOS API</span> — a
+          comprehensive dataset of global meteorite landings, classification
+          data, and recorded masses. Charts are auto-generated in real time.
+        </p>
       </div>
     </div>
   )
