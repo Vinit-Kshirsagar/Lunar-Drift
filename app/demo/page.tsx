@@ -9,12 +9,13 @@ export default function DemoPage() {
   const [animationState, setAnimationState] = useState('idle');
   const [showImpact, setShowImpact] = useState(false);
   const [currentTimelineIndex, setCurrentTimelineIndex] = useState(-1);
-  const containerRef = useRef(null);
-  const sceneRef = useRef(null);
-  const rendererRef = useRef(null);
-  const animationFrameRef = useRef(null);
-  const meteorRef = useRef(null);
-  const trailParticlesRef = useRef([]);
+  
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const meteorRef = useRef<THREE.Mesh | null>(null);
+  const trailParticlesRef = useRef<THREE.Mesh[]>([]);
 
   const meteorData = {
     velocity: 20000,
@@ -30,13 +31,13 @@ export default function DemoPage() {
 
   const impactEnergy = 0.5 * meteorData.mass * Math.pow(meteorData.velocity, 2);
 
-  const getImpactLevel = (energy) => {
+  const getImpactLevel = (energy: number) => {
     if (energy < 1e12) return { level: 'Low Impact', color: 'text-green-400', icon: '🟢', precaution: 'Minor event, minimal ground impact.' };
     if (energy < 1e15) return { level: 'Medium Impact', color: 'text-orange-400', icon: '🟠', precaution: 'Potential local damage — seek shelter.' };
     return { level: 'High Impact', color: 'text-red-400', icon: '🔴', precaution: 'Severe global threat — initiate emergency protocols.' };
   };
 
-  const getCivilianImpact = (energy) => {
+  const getCivilianImpact = (energy: number) => {
     if (energy < 1e12) {
       return {
         radius: '1-5 km',
@@ -61,7 +62,7 @@ export default function DemoPage() {
     };
   };
 
-  const getSafetyProtocols = (energy) => {
+  const getSafetyProtocols = (energy: number): string[] => {
     if (energy < 1e12) {
       return [
         'Monitor local news and emergency broadcasts',
@@ -91,7 +92,7 @@ export default function DemoPage() {
     ];
   };
 
-  const getImpactReasons = (energy) => {
+  const getImpactReasons = (energy: number) => {
     const commonReasons = [
       {
         title: 'Gravitational Perturbations',
@@ -205,6 +206,7 @@ export default function DemoPage() {
     canvas.width = 2048;
     canvas.height = 1024;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.CanvasTexture(canvas);
 
     const oceanGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     oceanGradient.addColorStop(0, '#1a4d6e');
@@ -275,6 +277,7 @@ export default function DemoPage() {
     canvas.width = 2048;
     canvas.height = 1024;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.CanvasTexture(canvas);
 
     for (let i = 0; i < 800; i++) {
       const x = Math.random() * canvas.width;
@@ -301,6 +304,7 @@ export default function DemoPage() {
     canvas.width = 2048;
     canvas.height = 1024;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.CanvasTexture(canvas);
 
     ctx.fillStyle = '#505050';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -324,6 +328,7 @@ export default function DemoPage() {
     canvas.width = 512;
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.CanvasTexture(canvas);
 
     const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
     gradient.addColorStop(0, '#6b4423');
@@ -507,9 +512,7 @@ export default function DemoPage() {
     const trajectoryMaterial = new THREE.MeshBasicMaterial({
       color: 0xff6600,
       transparent: true,
-      opacity: 0.5,
-      emissive: new THREE.Color(0xff6600),
-      emissiveIntensity: 0.6
+      opacity: 0.5
     });
     const trajectoryLine = new THREE.Mesh(trajectoryGeometry, trajectoryMaterial);
     scene.add(trajectoryLine);
@@ -532,7 +535,7 @@ export default function DemoPage() {
     const meteorLight = new THREE.PointLight(0xff6600, 4, 20);
     meteor.add(meteorLight);
 
-    const trailParticles = [];
+    const trailParticles: THREE.Mesh[] = [];
     const trailGeometry = new THREE.SphereGeometry(0.1, 12, 12);
     const trailMaterial = new THREE.MeshBasicMaterial({
       color: 0xffaa00,
@@ -587,7 +590,8 @@ export default function DemoPage() {
               const trailProgress = Math.max(0, animationProgress - i * 0.025);
               const trailPoint = trajectoryCurve.getPointAt(Math.min(trailProgress, 0.999));
               particle.position.copy(trailPoint);
-              particle.material.opacity = 0.8 * (1 - i / trailParticles.length) * (1 + animationProgress);
+              const material = particle.material as THREE.MeshBasicMaterial;
+              material.opacity = 0.8 * (1 - i / trailParticles.length) * (1 + animationProgress);
               const particleScale = 1 + trailProgress * 2;
               particle.scale.set(particleScale, particleScale, particleScale);
             }
@@ -743,7 +747,7 @@ export default function DemoPage() {
               <div 
                 ref={containerRef}
                 className="relative w-full overflow-hidden bg-black"
-                style={{ height: '600px' }}
+                style={{ height: '500px' }}
               >
                 {animationState === 'idle' && (
                   <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
@@ -824,8 +828,6 @@ export default function DemoPage() {
               </div>
             </div>
           </motion.div>
-
-                      
 
           <AnimatePresence>
             {showImpact && (

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Select } from '@/components/ui/select'
+import { useEffect, useState, ChangeEvent } from 'react'
 import ChartClient from '@/components/ChartsClient'
+
+// ✅ Reusable union type for chart options
+type ChartType = 'decade' | 'classification' | 'mass'
 
 interface MeteorData {
   id: string
@@ -16,7 +18,7 @@ interface MeteorData {
 
 export default function ChartsPage() {
   const [meteors, setMeteors] = useState<MeteorData[]>([])
-  const [chartType, setChartType] = useState('decade')
+  const [chartType, setChartType] = useState<ChartType>('decade')
 
   useEffect(() => {
     const fetchMeteors = async () => {
@@ -32,11 +34,16 @@ export default function ChartsPage() {
     fetchMeteors()
   }, [])
 
-  const chartOptions = [
+  const chartOptions: { value: ChartType; label: string }[] = [
     { value: 'decade', label: 'Meteors by Decade' },
     { value: 'classification', label: 'Meteors by Classification' },
     { value: 'mass', label: 'Meteors by Mass Range' },
   ]
+
+  // ✅ Strongly typed event handler
+  const handleChartTypeChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setChartType(e.target.value as ChartType)
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -59,7 +66,7 @@ export default function ChartsPage() {
           </h2>
           <select
             value={chartType}
-            onChange={(e) => setChartType(e.target.value)}
+            onChange={handleChartTypeChange}
             className="bg-gray-900 text-gray-300 border border-gray-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
           >
             {chartOptions.map((option) => (
@@ -79,7 +86,8 @@ export default function ChartsPage() {
       {/* Info Section */}
       <div className="max-w-4xl mx-auto mt-8 text-gray-400 text-sm leading-relaxed">
         <p>
-          Data source: <span className="text-teal-400">NASA CNEOS API</span> — a
+          Data source:{' '}
+          <span className="text-teal-400">NASA CNEOS API</span> — a
           comprehensive dataset of global meteorite landings, classification
           data, and recorded masses. Charts are auto-generated in real time.
         </p>
