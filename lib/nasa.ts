@@ -8,7 +8,7 @@ interface RawMeteor {
   reclat?: string
   reclong?: string
   recclass?: string
-  [key: string]: any
+  [key: string]: string | number | null | undefined
 }
 
 interface SanitizedMeteor {
@@ -23,19 +23,15 @@ interface SanitizedMeteor {
 
 export function sanitizeMeteor(raw: RawMeteor): SanitizedMeteor | null {
   try {
-    // Parse coordinates
+    // Parse latitude and longitude
     const lat = parseFloat(raw.reclat || '')
     const lng = parseFloat(raw.reclong || '')
 
     // Skip if missing or invalid coordinates
-    if (isNaN(lat) || isNaN(lng)) {
-      return null
-    }
+    if (isNaN(lat) || isNaN(lng)) return null
 
     // Skip if coordinates are out of valid range
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return null
-    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
 
     // Parse mass (optional)
     let mass: number | null = null
@@ -52,14 +48,14 @@ export function sanitizeMeteor(raw: RawMeteor): SanitizedMeteor | null {
       try {
         const parsed = dayjs(raw.year)
         if (parsed.isValid()) {
-          year = parsed.year().
-          toString()
+          year = parsed.year().toString()
         }
-      } catch (e) {
-        // Year parsing failed, leave as null
+      } catch {
+        // Ignore invalid year values
       }
     }
 
+    // Return sanitized meteor object
     return {
       id: raw.id || `meteor-${Date.now()}-${Math.random()}`,
       name: raw.name || 'Unknown',

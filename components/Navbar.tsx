@@ -15,21 +15,7 @@ export default function Navbar() {
 
   return (
     <nav className="relative bg-black/40 backdrop-blur-xl border-b border-teal-500/30 shadow-[0_0_30px_rgba(20,184,166,0.15)]">
-      {/* Animated background particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={`nav-particle-${i}`}
-            className="absolute w-1 h-1 bg-teal-400/30 rounded-full animate-pulse"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              animationDuration: `${2 + Math.random() * 2}s`,
-            }}
-          />
-        ))}
-      </div>
+     
 
       {/* Subtle nebula glow */}
       <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 via-cyan-500/5 to-purple-500/5 pointer-events-none" />

@@ -2,9 +2,14 @@
 import { NextResponse } from "next/server";
 import { genAI, CHAT_MODEL } from "../../../lib/gemini";
 
+interface ChatMessage {
+  sender: "user" | "AI";
+  text: string;
+}
+
 export async function POST(req: Request) {
   try {
-    const { message, history } = await req.json();
+    const { message, history }: { message: string; history?: ChatMessage[] } = await req.json();
 
     if (!message || message.trim() === "") {
       return NextResponse.json({ error: "No message provided" }, { status: 400 });
@@ -57,7 +62,7 @@ Conversation so far:
 `;
 
     if (history && Array.isArray(history)) {
-      history.forEach((msg: any) => {
+      history.forEach((msg: ChatMessage) => {
         prompt += `${msg.sender === "user" ? "User" : "AI"}: ${msg.text}\n`;
       });
     }
@@ -71,11 +76,10 @@ Conversation so far:
     const result = await model.generateContent(prompt);
 
     return NextResponse.json({ reply: result.response.text() });
-  } catch (err: any) {
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : "Something went wrong";
     console.error("API error:", err);
-    return NextResponse.json(
-      { error: err.message || "Something went wrong" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

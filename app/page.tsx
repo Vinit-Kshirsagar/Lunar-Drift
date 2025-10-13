@@ -148,7 +148,7 @@ export default function Home() {
 
           <p className="text-2xl text-gray-100 mb-12 max-w-3xl mx-auto leading-relaxed" 
              style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>
-            Explore NASA's comprehensive database of meteorite landings across Earth. 
+            Explore NASA&apos;s comprehensive database of meteorite landings across Earth. 
             Discover patterns, visualize impact sites, and gain insights into cosmic visitors.
           </p>
 
@@ -292,7 +292,7 @@ export default function Home() {
                 About the Data
               </h3>
               <p className="text-gray-100 leading-relaxed text-xl max-w-3xl mx-auto">
-                This application uses NASA's meteorite landing dataset, which contains information 
+                This application uses NASA&apos;s meteorite landing dataset, which contains information 
                 about meteorites that have fallen to Earth and been recovered. The database includes 
                 location, mass, composition, and year of discovery for thousands of specimens.
               </p>
